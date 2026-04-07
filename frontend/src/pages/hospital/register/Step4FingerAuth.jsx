@@ -40,6 +40,7 @@ export default function Step4FingerAuth() {
     const [timeLeft, setTimeLeft] = useState(TIMEOUT_SECONDS);
     const [showSkipOption, setShowSkipOption] = useState(false);
     const [skipLoading, setSkipLoading] = useState(false);
+    const [registrationConflict, setRegistrationConflict] = useState(null);
 
     const countdownRef = useRef(null);
     const timeoutRef = useRef(null);
@@ -116,6 +117,7 @@ export default function Step4FingerAuth() {
         setFingerId(newFingerId);
         update("fingerprintId", newFingerId);
         update("fingerprintEnrolled", true);
+        setRegistrationConflict(null);
         setEnrollState(STATES.REGISTERING);
 
         try {
@@ -132,11 +134,22 @@ export default function Step4FingerAuth() {
         } catch (err) {
             console.error("Registration error:", err);
             setEnrollState(STATES.ERROR);
-            setErrorMessage(
-                err.response?.data?.message ||
-                err.message ||
-                "Patient registration failed. Fingerprint enrolled but please retry registration."
-            );
+            if (err.response?.status === 409) {
+                const conflictData = {
+                    code: err.response?.data?.code || "PATIENT_DUPLICATE_CONFLICT",
+                    field: err.response?.data?.field || "unknown",
+                    message: err.response?.data?.message || "Duplicate value found"
+                };
+                setRegistrationConflict(conflictData);
+                setErrorMessage(conflictData.message);
+            } else {
+                setRegistrationConflict(null);
+                setErrorMessage(
+                    err.response?.data?.message ||
+                    err.message ||
+                    "Patient registration failed. Fingerprint enrolled but please retry registration."
+                );
+            }
         }
     }, [data, user, update]);
 
@@ -144,6 +157,7 @@ export default function Step4FingerAuth() {
         clearAllTimers();
         setEnrollState(STATES.ENROLLING);
         setErrorMessage("");
+        setRegistrationConflict(null);
         setFingerId(null);
         setTimeLeft(TIMEOUT_SECONDS);
 
@@ -319,6 +333,7 @@ export default function Step4FingerAuth() {
     const handleRetry = async () => {
         clearAllTimers();
         setErrorMessage("");
+        setRegistrationConflict(null);
         setFingerId(null);
         setTimeLeft(TIMEOUT_SECONDS);
         setShowSkipOption(false);
@@ -457,6 +472,16 @@ export default function Step4FingerAuth() {
                                             ? `Place finger on scanner and hold steady... ${timeLeft}s remaining`
                                             : "Click START ENROLLMENT to begin fingerprint capture."}
                     </p>
+                    {registrationConflict && fingerId && (
+                        <div className="mx-auto mt-4 max-w-md rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left dark:border-amber-900/40 dark:bg-amber-900/20">
+                            <p className="text-xs font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                                Registration Conflict
+                            </p>
+                            <p className="mt-1 text-sm font-medium text-amber-700 dark:text-amber-300">
+                                Fingerprint enrollment succeeded with ID {fingerId}, but patient registration failed: {registrationConflict.message}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {showScanning && (

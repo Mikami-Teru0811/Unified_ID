@@ -108,6 +108,35 @@ const buildPatientSummary = (patient) => ({
   emergencyContact: patient.emergencyContact
 });
 
+const buildRegistrationConflict = (field) => {
+  switch (field) {
+    case 'phone':
+      return {
+        message: 'A patient with this phone number already exists',
+        code: 'PATIENT_PHONE_CONFLICT',
+        field: 'phone'
+      };
+    case 'nfcUuid':
+      return {
+        message: 'This NFC card is already linked to another patient',
+        code: 'PATIENT_NFC_CONFLICT',
+        field: 'nfcUuid'
+      };
+    case 'fingerprintId':
+      return {
+        message: 'This fingerprint is already enrolled to another patient',
+        code: 'PATIENT_FINGERPRINT_CONFLICT',
+        field: 'fingerprintId'
+      };
+    default:
+      return {
+        message: 'Duplicate value found',
+        code: 'PATIENT_DUPLICATE_CONFLICT',
+        field: field || 'unknown'
+      };
+  }
+};
+
 const mapMedicalHistoryEntryToVisit = (entry, patient) => ({
   hospital: entry.hospitalName || 'Hospital not recorded',
   doctor: entry.doctorName || 'Care team',
@@ -290,14 +319,23 @@ export const registerPatientByHospital = async (req, res) => {
     if (existingPhonePatient) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(409).json({ message: 'A patient with this phone already exists' });
+      return res.status(409).json(buildRegistrationConflict('phone'));
     }
 
     const existingNfcPatient = await Patient.findOne({ nfcUuid: nfcId }).session(session);
     if (existingNfcPatient) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(409).json({ message: 'This NFC card is already linked to another patient' });
+      return res.status(409).json(buildRegistrationConflict('nfcUuid'));
+    }
+
+    if (fingerprintId && !`${fingerprintId}`.startsWith('SKIPPED-')) {
+      const existingFingerprintPatient = await Patient.findOne({ fingerprintId }).session(session);
+      if (existingFingerprintPatient) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(409).json(buildRegistrationConflict('fingerprintId'));
+      }
     }
 
     const usernameBase = `patient_${phone.replace(/\D/g, '').slice(-10) || Date.now()}`;
@@ -386,9 +424,9 @@ export const registerPatientByHospital = async (req, res) => {
     session.endSession();
     console.error('Patient registration error:', error);
     if (error.code === 11000) {
+      const duplicateField = Object.keys(error.keyPattern || {})[0] || 'unknown';
       return res.status(409).json({ 
-        message: 'Duplicate value found', 
-        field: Object.keys(error.keyPattern || {})[0] || 'unknown' 
+        ...buildRegistrationConflict(duplicateField)
       });
     }
     if (error.name === 'ValidationError') {
