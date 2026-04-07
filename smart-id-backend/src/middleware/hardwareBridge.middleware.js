@@ -37,7 +37,7 @@ export const optionalHardwareBridge = (req, res, next) => {
     next();
 };
 
-export const allowHardwareBridgeOrAuthenticatedUser = (...allowedRoles) => {
+export const allowHardwareBridgeOrAuthenticatedUser = () => {
     return (req, res, next) => {
         const key = req.headers['x-hardware-key'];
         const validKey = process.env.HARDWARE_BRIDGE_KEY;

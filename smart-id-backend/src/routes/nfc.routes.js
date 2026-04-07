@@ -19,6 +19,13 @@ import {
 } from "../controllers/nfc.controller.js";
 
 const router = express.Router();
+const methodNotAllowed = (allowedMethods) => (_req, res) => {
+  res.setHeader("Allow", allowedMethods.join(", "));
+  return res.status(405).json({
+    error: "Method not allowed",
+    allowedMethods
+  });
+};
 
 // ==========================================
 // 🔴 HARDWARE INTEGRATION ROUTES (Raspberry Pi)
@@ -99,6 +106,7 @@ router.post(
   authorizeRoles("hospital"),
   startFingerprintEnrollment
 );
+router.get("/enroll-start", methodNotAllowed(["POST"]));
 
 router.get(
   "/enroll-status",
@@ -113,6 +121,7 @@ router.post(
   authorizeRoles("hospital"),
   completeFingerprintEnrollment
 );
+router.get("/enroll-complete", methodNotAllowed(["POST"]));
 
 router.post(
   "/enroll-cancel",
@@ -120,6 +129,7 @@ router.post(
   authorizeRoles("hospital"),
   cancelFingerprintEnrollment
 );
+router.get("/enroll-cancel", methodNotAllowed(["POST"]));
 
 
 // ==========================================
