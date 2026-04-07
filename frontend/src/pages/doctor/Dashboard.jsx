@@ -1,0 +1,311 @@
+import { useState, useEffect } from "react";
+import doctorApi from "../../services/doctor.api";
+
+export default function DoctorDashboard() {
+    const [patient, setPatient] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [stats, setStats] = useState(null);
+    const [recentPatients, setRecentPatients] = useState([]);
+
+    const [step, setStep] = useState('idle');
+    const [scannedUid, setScannedUid] = useState(null);
+
+    const [hardware, setHardware] = useState({
+        nfc: "Checking...",
+        fingerprint: "Checking...",
+        gsm: "Checking...",
+        pi: "Checking..."
+    });
+
+    useEffect(() => {
+        const fetchStatus = async () => {
+            try {
+                const [status, statsResponse, recentResponse] = await Promise.all([
+                    doctorApi.getDeviceStatus(),
+                    doctorApi.getStats(),
+                    doctorApi.getRecentPatients(),
+                ]);
+                
+                // Normalize hardware status - handle both string and object responses
+                const normalizeHardware = (value) => {
+                    if (typeof value === 'string') return value;
+                    if (typeof value === 'object' && value !== null) {
+                        if (value.available === true) return 'Connected';
+                        if (value.status === 'ready' || value.status === 'online') return 'Connected';
+                        if (value.available === false) return 'Unavailable';
+                        return 'Unknown';
+                    }
+                    return 'Unavailable';
+                };
+
+                const normalizePi = (value) => {
+                    if (typeof value === 'string') return value === 'online' ? 'Online' : value;
+                    if (typeof value === 'object' && value !== null) {
+                        return value.pi || value.status === 'ready' ? 'Online' : 'Offline';
+                    }
+                    return 'Online';
+                };
+
+                setHardware({
+                    nfc: normalizeHardware(status?.nfc),
+                    fingerprint: normalizeHardware(status?.fingerprint),
+                    gsm: normalizeHardware(status?.gsm),
+                    pi: normalizePi(status?.pi)
+                });
+                setStats(statsResponse || null);
+                setRecentPatients(recentResponse || []);
+            } catch {
+                setHardware({
+                    nfc: "Unavailable",
+                    fingerprint: "Unavailable",
+                    gsm: "Unavailable",
+                    pi: "Offline"
+                });
+            }
+        };
+        fetchStatus();
+    }, []);
+
+    const handleStartScan = async () => {
+        setStep('scanning');
+        setError(null);
+        try {
+            const data = await doctorApi.scanNfc();
+            if (data && data.uid) {
+                setScannedUid(data.uid);
+                setStep('loading');
+                const patientData = await doctorApi.getPatientByUid(data.uid);
+                setPatient({
+                    ...patientData,
+                    name: patientData.fullName || patientData.name || "Unknown Patient",
+                    healthId: patientData.user?.username || patientData.nfcUuid || patientData._id,
+                });
+                setStep('success');
+            }
+        } catch (err) {
+            console.error("NFC Scan Failed", err);
+            const status = err.response?.status;
+            const message = err.response?.data?.message || "Failed to scan NFC card. Please try again.";
+            
+            if (status === 404) {
+                setError("Patient not found. The NFC card is not registered in the system.");
+            } else if (status === 500) {
+                setError("Server error. Please try again or contact administrator.");
+            } else if (status === 401 || status === 403) {
+                setError("Authentication error. Please refresh and login again.");
+            } else {
+                setError(message);
+            }
+            setStep('idle');
+        }
+    };
+
+    const resetSession = () => {
+        setStep('idle');
+        setPatient(null);
+        setScannedUid(null);
+        setError(null);
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto px-4 pb-20">
+            <div className="mb-8 bg-slate-100 dark:bg-slate-900 p-6 rounded-[2rem] border dark:border-slate-800 shadow-sm">
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-4">Hardware Status</h3>
+                <div className="flex flex-wrap gap-4 md:gap-8 text-sm font-bold">
+                    <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${hardware.nfc === 'Connected' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        NFC Reader: <span className="text-slate-500">{hardware.nfc}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${hardware.pi === 'Online' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        Raspberry Pi: <span className="text-slate-500">{hardware.pi}</span>
+                    </div>
+                </div>
+            </div>
+
+            {stats && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <MetricCard label="Patients" value={stats.totalPatients} />
+                    <MetricCard label="Today" value={stats.todayConsultations} />
+                    <MetricCard label="Pending Consents" value={stats.pendingConsents} />
+                    <MetricCard label="Emergency" value={stats.emergencyAccessToday} />
+                </div>
+            )}
+
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+                <div>
+                    <h1 className="text-4xl font-black tracking-tight mb-2">Clinical Portal</h1>
+                    <p className="text-slate-500 font-medium">Tap NFC card to view patient records</p>
+                </div>
+            </div>
+
+            {!patient ? (
+                <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-200 dark:border-slate-800 shadow-xl p-10 flex flex-col items-center justify-center text-center overflow-hidden min-h-[400px]">
+                    {step === 'idle' && (
+                        <div className="flex flex-col items-center animate-in fade-in duration-500">
+                            <button
+                                onClick={handleStartScan}
+                                className="w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-all hover:scale-105 bg-primary/10 text-primary hover:bg-primary hover:text-white"
+                            >
+                                <span className="material-symbols-outlined text-5xl">contactless</span>
+                            </button>
+                            <h2 className="text-2xl font-bold mb-2">Tap Patient Smart-ID</h2>
+                            <p className="text-slate-500 font-medium max-w-sm mb-6">
+                                Hold the NFC card near the reader to view patient records
+                            </p>
+                        </div>
+                    )}
+
+                    {step === 'scanning' && (
+                        <div className="flex flex-col items-center animate-in fade-in duration-500">
+                            <div className="w-24 h-24 rounded-full bg-primary text-white shadow-lg shadow-primary/40 animate-pulse flex items-center justify-center mb-6">
+                                <span className="material-symbols-outlined text-5xl">contactless</span>
+                            </div>
+                            <h2 className="text-2xl font-bold mb-2">Scanning NFC...</h2>
+                            <p className="text-slate-500 font-medium max-w-sm mb-6">
+                                Waiting for Raspberry Pi NFC reader response
+                            </p>
+                            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    )}
+
+                    {step === 'loading' && (
+                        <div className="flex flex-col items-center animate-in fade-in duration-500">
+                            <div className="w-24 h-24 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center mb-6 animate-pulse">
+                                <span className="material-symbols-outlined text-5xl">person_search</span>
+                            </div>
+                            <h2 className="text-2xl font-bold mb-2">Loading Patient Data...</h2>
+                            <p className="text-slate-500 font-medium max-w-sm mb-6">
+                                Fetching records from database
+                            </p>
+                            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    )}
+
+                    {step === 'idle' && error && (
+                        <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl">
+                            <p className="text-red-600 dark:text-red-400 font-medium">{error}</p>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="animate-in fade-in slide-in-from-bottom-10 duration-700">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 border border-slate-100 dark:border-slate-800 shadow-2xl overflow-hidden relative">
+                        <div className="flex items-center gap-8 mb-12 pb-12 border-b dark:border-slate-800 mt-4">
+                            <div className="w-20 h-20 rounded-[2rem] bg-primary flex items-center justify-center text-white font-black text-2xl shadow-lg">
+                                {patient.name ? patient.name.split(' ').map(n => n[0]).join('') : "P"}
+                            </div>
+                            <div>
+                                <h2 className="text-3xl font-black tracking-tight">{patient.name || "Unknown"}</h2>
+                                <p className="text-slate-500 font-bold flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-sm">badge</span>
+                                    Health ID: {patient.healthId || patient.id}
+                                </p>
+                                {patient.phone && (
+                                    <p className="text-slate-400 text-sm">{patient.phone}</p>
+                                )}
+                            </div>
+                            {patient.bloodGroup && (
+                                <div className="ml-auto bg-red-50 dark:bg-red-900/20 px-6 py-3 rounded-2xl border border-red-100 dark:border-red-900/20 text-center">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-1 leading-none">Blood Group</p>
+                                    <p className="text-2xl font-black text-red-600 leading-none">{patient.bloodGroup}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div className="space-y-6">
+                                {patient.age && (
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Age / Gender</label>
+                                        <p className="text-xl font-bold bg-slate-50 dark:bg-slate-800 p-5 rounded-2xl border dark:border-slate-700">
+                                            {patient.age} years / {patient.gender || "Not specified"}
+                                        </p>
+                                    </div>
+                                )}
+                                {patient.allergies && patient.allergies.length > 0 && (
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-2 block">Allergies</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {patient.allergies.map((allergy, i) => (
+                                                <span key={i} className="px-3 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-full text-sm font-bold border border-red-200 dark:border-red-800">
+                                                    {allergy}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {patient.emergencyContact && (
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Emergency Contact</label>
+                                        <p className="text-lg font-bold bg-slate-50 dark:bg-slate-800 p-5 rounded-2xl border dark:border-slate-700">
+                                            {patient.emergencyContact.name} - {patient.emergencyContact.phone}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="p-6 rounded-[2rem] border bg-green-50/50 border-green-200 dark:bg-green-950/20 dark:border-green-900/40">
+                                    <h3 className="font-bold flex items-center gap-2 mb-4 text-green-600">
+                                        <span className="material-symbols-outlined">verified_user</span>
+                                        NFC Verified - View Only Mode
+                                    </h3>
+                                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                        Patient identity verified via NFC card tap. Records are displayed in view-only mode.
+                                    </p>
+                                </div>
+                                <div className="p-6 rounded-[2rem] border bg-blue-50/50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40">
+                                    <h3 className="font-bold flex items-center gap-2 mb-4 text-blue-600">
+                                        <span className="material-symbols-outlined">info</span>
+                                        Data Source
+                                    </h3>
+                                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                        Records synced from Smart-ID database. For detailed EMR access, patient consent is required.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={resetSession}
+                                    className="w-full py-4 text-slate-400 font-bold hover:text-slate-900 dark:hover:text-white transition-all flex items-center justify-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined">exit_to_app</span>
+                                    Close Session
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {!patient && recentPatients.length > 0 && (
+                <div className="mt-10 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-slate-800 dark:text-slate-100">Recent Patients</h3>
+                        <span className="text-xs text-slate-400 uppercase font-bold tracking-widest">Backend data</span>
+                    </div>
+                    <div className="space-y-3">
+                        {recentPatients.slice(0, 5).map((entry) => (
+                            <div key={entry.id} className="flex items-center justify-between rounded-2xl bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
+                                <div>
+                                    <p className="font-semibold">{entry.name}</p>
+                                    <p className="text-sm text-slate-500">{entry.condition}</p>
+                                </div>
+                                <span className="text-xs font-mono text-slate-400">{new Date(entry.lastVisit).toLocaleString()}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function MetricCard({ label, value }) {
+    return (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-400">{label}</p>
+            <p className="mt-2 text-2xl font-black">{value ?? 0}</p>
+        </div>
+    );
+}

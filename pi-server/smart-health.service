@@ -1,0 +1,16 @@
+[Unit]
+Description=Smart Health Hardware Bridge
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/smart-health
+Environment="PATH=/home/pi/smarthealth_env/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/home/pi/smarthealth_env/bin/python server.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

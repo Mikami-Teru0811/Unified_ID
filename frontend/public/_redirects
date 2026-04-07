@@ -1,0 +1,17 @@
+# SPA Redirects for Render
+# All routes should fallback to index.html for client-side routing
+
+# Explicit hospital register routes (must come first for specificity)
+/hospital/register* /index.html 200
+/hospital/clinical-note* /index.html 200
+/hospital/emergency* /index.html 200
+
+# Role-based routes (wildcard)
+/hospital* /index.html 200
+/doctor* /index.html 200
+/admin* /index.html 200
+/medical-shop* /index.html 200
+/patient* /index.html 200
+
+# Catch-all fallback
+/* /index.html 200

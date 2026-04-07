@@ -1,0 +1,6 @@
+flask>=2.3.0
+flask-cors>=4.0.0
+pyfingerprint==1.5.0
+mfrc522>=0.0.7
+RPi.GPIO>=0.7.0
+pyserial>=3.5

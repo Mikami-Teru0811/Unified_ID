@@ -1,0 +1,34 @@
+# Environment files
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+smart-id-backend/.env
+smart-id-backend/.env.*
+!smart-id-backend/.env.example
+
+# Dependencies and build outputs
+frontend/node_modules/
+smart-id-backend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+
+# Logs and reports
+*.log
+frontend/lint_report.json
+frontend/lint_results.txt
+
+# Coverage and caches
+coverage/
+.cache/
+*.tsbuildinfo
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Preserve old nested repo metadata backups if created
+frontend/.git-backup/
+smart-id-backend/.git-backup/
