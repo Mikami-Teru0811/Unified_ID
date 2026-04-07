@@ -12,6 +12,7 @@ export default function RegisterSuccess() {
 
     const {
         patientName,
+        fullName,
         patientId,
         nfcId,
         govtId,
@@ -29,6 +30,8 @@ export default function RegisterSuccess() {
         fingerId,
         fingerprintEnrolled,
     } = state;
+
+    const resolvedPatientName = patientName || fullName || "Patient";
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
@@ -62,7 +65,7 @@ export default function RegisterSuccess() {
                     </h1>
 
                     <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-md mx-auto">
-                        Patient <span className="font-bold text-slate-900 dark:text-white">{patientName}</span>{" "}
+                        Patient <span className="font-bold text-slate-900 dark:text-white">{resolvedPatientName}</span>{" "}
                         has been successfully registered{fingerprintEnrolled ? " with biometric fingerprint enrolled" : ""} and their Smart-ID card is now active.
                     </p>
 

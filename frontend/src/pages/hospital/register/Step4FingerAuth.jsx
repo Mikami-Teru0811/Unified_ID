@@ -16,6 +16,19 @@ const STATES = {
 const TIMEOUT_SECONDS = 30;
 const POLL_INTERVAL = 2000;
 
+const buildRegistrationPayload = (registrationData, userId, fingerprintId) => {
+    const { email: _email, ...contactWithoutEmail } = registrationData.contact || {};
+
+    return {
+        ...registrationData.personal,
+        ...contactWithoutEmail,
+        ...registrationData.medical,
+        nfcId: registrationData.nfcId,
+        hospitalId: userId,
+        fingerprintId
+    };
+};
+
 export default function Step4FingerAuth() {
     const navigate = useNavigate();
     const { data, update } = usePatientRegistration();
@@ -63,8 +76,13 @@ export default function Step4FingerAuth() {
             });
         }, 1000);
 
-        timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = setTimeout(async () => {
             clearAllTimers();
+            try {
+                await hospitalAPI.cancelFingerprintEnrollment();
+            } catch (cancelErr) {
+                console.log("Cancel on timeout (non-critical):", cancelErr.message);
+            }
             setEnrollState(STATES.ERROR);
             setErrorMessage(`Scan timed out (${TIMEOUT_SECONDS}s). Please try again.`);
         }, TIMEOUT_SECONDS * 1000);
@@ -101,16 +119,7 @@ export default function Step4FingerAuth() {
         setEnrollState(STATES.REGISTERING);
 
         try {
-            const { email: _email, ...contactWithoutEmail } = data.contact || {};
-
-    const registrationPayload = {
-                ...data.personal,
-                ...contactWithoutEmail,
-                ...data.medical,
-                nfcId: data.nfcId,
-                hospitalId: user?.id,
-                fingerprintId: newFingerId
-            };
+            const registrationPayload = buildRegistrationPayload(data, user?.id, newFingerId);
 
             console.log("REGISTRATION PAYLOAD:", registrationPayload);
 
@@ -220,7 +229,16 @@ export default function Step4FingerAuth() {
                         clearInterval(pollingRef.current);
                         pollingRef.current = null;
                     }
-                    const newFingerId = statusResponse.fingerprintId || statusResponse.enrollment?.fingerprintId;
+                    let finalizedFingerprintId = statusResponse.fingerprintId || statusResponse.enrollment?.fingerprintId;
+
+                    try {
+                        const completeResponse = await hospitalAPI.completeFingerprintEnrollment();
+                        finalizedFingerprintId = completeResponse?.fingerprintId || finalizedFingerprintId;
+                    } catch (completeErr) {
+                        console.warn("Complete enrollment fallback used:", completeErr.response?.data?.message || completeErr.message);
+                    }
+
+                    const newFingerId = finalizedFingerprintId;
                     handleEnrollmentComplete(newFingerId);
                 }
                 else if (statusResponse.failed || step === "failed" || statusResponse.error) {
@@ -334,12 +352,14 @@ export default function Step4FingerAuth() {
 
     const handleCompleteRegistration = () => {
         const isSkipped = fingerId?.startsWith('SKIPPED-');
+        const patientName = data.personal?.fullName || "";
         navigate("/hospital/register/success", {
             state: {
                 ...data.personal,
                 ...data.contact,
                 ...data.medical,
                 patientId: data.patientId,
+                patientName,
                 nfcId: data.nfcId,
                 fingerId: fingerId,
                 fingerprintEnrolled: !isSkipped
