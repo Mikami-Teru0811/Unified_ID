@@ -2,6 +2,26 @@ import { useState, useEffect } from "react";
 import doctorApi from "../../services/doctor.api";
 import toast from "react-hot-toast";
 
+const getRoleBadge = (entry) => {
+    if (entry?.recordedByRole === "doctor") return "Doctor";
+    if (entry?.recordedByRole === "hospital") return "Hospital";
+    if (entry?.source === "doctor_portal") return "Doctor";
+    if (entry?.source === "hospital_portal") return "Hospital";
+    return "Care team";
+};
+
+const getHospitalDisplay = (entry) => {
+    if (entry?.hospitalName) return entry.hospitalName;
+    if (entry?.recordedByRole === "doctor" || entry?.source === "doctor_portal") return "Doctor Portal";
+    return "Hospital not recorded";
+};
+
+const getAuthorDisplay = (entry) => {
+    if (entry?.recordedByRole === "doctor") return entry?.doctorName || "Doctor not recorded";
+    if (entry?.recordedByRole === "hospital") return entry?.doctorName || "Hospital team";
+    return entry?.doctorName || "Care team";
+};
+
 export default function DoctorDashboard() {
     const [patient, setPatient] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -404,11 +424,11 @@ export default function DoctorDashboard() {
                                                         </h4>
                                                         <div className="mt-2">
                                                             <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
-                                                                entry.source === "doctor_portal"
+                                                                getRoleBadge(entry) === "Doctor"
                                                                     ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300"
                                                                     : "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-300"
                                                             }`}>
-                                                                {entry.source === "doctor_portal" ? "Doctor" : "Hospital"}
+                                                                {getRoleBadge(entry)}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -428,7 +448,7 @@ export default function DoctorDashboard() {
                                                             Doctor
                                                         </p>
                                                         <p className="font-semibold text-slate-700 dark:text-slate-200">
-                                                            {entry.doctorName || "Not recorded"}
+                                                            {getAuthorDisplay(entry)}
                                                         </p>
                                                     </div>
                                                     <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4">
@@ -436,7 +456,7 @@ export default function DoctorDashboard() {
                                                             Hospital
                                                         </p>
                                                         <p className="font-semibold text-slate-700 dark:text-slate-200">
-                                                            {entry.hospitalName || "Hospital not recorded"}
+                                                            {getHospitalDisplay(entry)}
                                                         </p>
                                                     </div>
                                                     <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4">

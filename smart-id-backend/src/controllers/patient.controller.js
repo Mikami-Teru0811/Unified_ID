@@ -8,12 +8,31 @@ import mongoose from 'mongoose';
 
 const getActorId = (req) => req.user?.id || req.user?._id || null;
 const getRecordSourceLabel = (entry) => {
-  if (entry?.source === 'doctor_portal') return 'Doctor';
-  if (entry?.source === 'hospital_portal') return 'Hospital';
   if (entry?.recordedByRole === 'doctor') return 'Doctor';
   if (entry?.recordedByRole === 'hospital') return 'Hospital';
   if (entry?.recordedByRole === 'admin') return 'Admin';
+  if (entry?.source === 'doctor_portal') return 'Doctor';
+  if (entry?.source === 'hospital_portal') return 'Hospital';
   return 'Care team';
+};
+
+const getHospitalDisplayName = (entry) => {
+  if (entry?.hospitalName) return entry.hospitalName;
+  if (entry?.recordedByRole === 'doctor') return 'Doctor Portal';
+  if (entry?.source === 'doctor_portal') return 'Doctor Portal';
+  return 'Hospital not recorded';
+};
+
+const getAuthorDisplayName = (entry) => {
+  if (entry?.recordedByRole === 'doctor') {
+    return entry?.doctorName || 'Doctor not recorded';
+  }
+
+  if (entry?.recordedByRole === 'hospital') {
+    return entry?.doctorName || 'Hospital team';
+  }
+
+  return entry?.doctorName || 'Care team';
 };
 
 const calculateAge = (dob) => {
@@ -148,10 +167,8 @@ const buildRegistrationConflict = (field) => {
 };
 
 const mapMedicalHistoryEntryToVisit = (entry, patient) => ({
-  hospital:
-    entry.hospitalName ||
-    (entry.source === 'doctor_portal' ? 'Doctor Portal' : 'Hospital not recorded'),
-  doctor: entry.doctorName || 'Care team',
+  hospital: getHospitalDisplayName(entry),
+  doctor: getAuthorDisplayName(entry),
   date: entry.diagnosedDate || patient.updatedAt,
   summary: entry.notes || entry.condition || 'Medical record updated',
   category: entry.condition || 'General',
@@ -591,8 +608,8 @@ export const getMyPatientPrescriptions = async (req, res) => {
       name: entry.condition || `Prescription ${index + 1}`,
       notes: entry.notes || 'No additional notes',
       issuedAt: entry.diagnosedDate || patient.updatedAt,
-      doctor: entry.doctorName || 'Care team',
-      hospital: entry.hospitalName || (entry.source === 'doctor_portal' ? 'Doctor Portal' : 'Hospital not recorded'),
+      doctor: getAuthorDisplayName(entry),
+      hospital: getHospitalDisplayName(entry),
       source: entry.source || null,
       sourceLabel: getRecordSourceLabel(entry),
       recordedByRole: entry.recordedByRole || null
@@ -832,8 +849,8 @@ const buildMedicalHistoryPDF = async (patient) => {
           doc.fontSize(11).text(`${index + 1}. ${record.condition || 'Clinical Note'}`);
           doc.fontSize(10).text(`   Date: ${record.diagnosedDate ? new Date(record.diagnosedDate).toLocaleDateString() : 'N/A'}`);
           doc.fontSize(10).text(`   Source: ${getRecordSourceLabel(record)}`);
-          doc.fontSize(10).text(`   Hospital: ${record.hospitalName || (record.source === 'doctor_portal' ? 'Doctor Portal' : 'Hospital not recorded')}`);
-          doc.fontSize(10).text(`   Recorded By: ${record.doctorName || 'Care team'}`);
+          doc.fontSize(10).text(`   Hospital: ${getHospitalDisplayName(record)}`);
+          doc.fontSize(10).text(`   Recorded By: ${getAuthorDisplayName(record)}`);
           doc.fontSize(10).text(`   Notes: ${record.notes || 'No additional notes'}`);
           doc.moveDown(0.5);
         });

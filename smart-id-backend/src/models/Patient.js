@@ -89,6 +89,7 @@ const patientSchema = new mongoose.Schema(
         condition: String,
         diagnosedDate: Date,
         notes: String,
+        source: String,
         doctorName: String,
         doctorId: {
           type: mongoose.Schema.Types.ObjectId,
