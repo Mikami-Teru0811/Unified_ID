@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import doctorApi from "../../services/doctor.api";
+import toast from "react-hot-toast";
 
 export default function DoctorDashboard() {
     const [patient, setPatient] = useState(null);
@@ -101,7 +102,18 @@ export default function DoctorDashboard() {
         }
     };
 
-    const resetSession = () => {
+    const resetSession = async () => {
+        const activePatientId = patient?.id || patient?._id;
+
+        if (activePatientId) {
+            try {
+                await doctorApi.closePatientSession(activePatientId);
+            } catch (err) {
+                console.error("Failed to log session close", err);
+                toast.error(err.response?.data?.message || "Failed to record session close.");
+            }
+        }
+
         setStep('idle');
         setPatient(null);
         setScannedUid(null);

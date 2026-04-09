@@ -53,6 +53,11 @@ const doctorApi = {
     getHistory: async () => {
         const res = await api.get("/audit/my");
         return res.data;
+    },
+
+    closePatientSession: async (patientId) => {
+        const res = await api.post("/doctor/close-session", { patientId });
+        return res.data;
     }
 };
 

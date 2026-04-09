@@ -3,7 +3,8 @@ import {
   getDoctorStats,
   getPatientByNfc,
   getRecentPatients,
-  getDeviceStatus
+  getDeviceStatus,
+  closePatientSession
 } from '../controllers/doctor.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import { authorizeRoles } from '../middleware/role.middleware.js';
@@ -25,5 +26,8 @@ router.get('/recent-patients', authorizeRoles('doctor'), checkPermission('patien
 
 // Get device status
 router.get('/device-status', authorizeRoles('doctor', 'hospital'), getDeviceStatus);
+
+// Close current patient session and log it
+router.post('/close-session', authorizeRoles('doctor'), checkPermission('patient_search'), closePatientSession);
 
 export default router;

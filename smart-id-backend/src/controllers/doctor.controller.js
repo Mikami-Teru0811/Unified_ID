@@ -166,3 +166,43 @@ export const getDeviceStatus = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch device status' });
   }
 };
+
+export const closePatientSession = async (req, res) => {
+  try {
+    const patientId = req.body?.patientId;
+
+    if (!patientId) {
+      return res.status(400).json({ message: 'Patient ID is required' });
+    }
+
+    const patient = await Patient.findById(patientId).select('fullName nfcUuid');
+
+    if (!patient) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+
+    await logAudit({
+      actor: req.user._id,
+      actorRole: req.user.role,
+      action: 'PATIENT_SESSION_CLOSE',
+      patient: patient._id,
+      resource: 'PATIENT_SESSION',
+      ipAddress: req.ip,
+      targetType: 'patient',
+      targetId: `${patient._id}`,
+      targetName: patient.fullName,
+      metadata: {
+        nfcId: patient.nfcUuid || null,
+        mode: 'view-only'
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Patient session closed and logged'
+    });
+  } catch (error) {
+    console.error('Close patient session error:', error);
+    res.status(500).json({ message: 'Failed to close patient session' });
+  }
+};
