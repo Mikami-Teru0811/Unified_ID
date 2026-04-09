@@ -19,6 +19,15 @@ export default function DoctorDashboard() {
         pi: "Checking..."
     });
 
+    const formatTimelineDate = (value) => {
+        if (!value) return "Date not available";
+
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return "Date not available";
+
+        return parsed.toLocaleString();
+    };
+
     useEffect(() => {
         const fetchStatus = async () => {
             try {
@@ -285,6 +294,95 @@ export default function DoctorDashboard() {
                                     Close Session
                                 </button>
                             </div>
+                        </div>
+
+                        <div className="mt-10 pt-10 border-t border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h3 className="text-xl font-black tracking-tight">Clinical Records</h3>
+                                    <p className="text-sm text-slate-500 font-medium">
+                                        Historical medical notes available in view-only mode after NFC verification.
+                                    </p>
+                                </div>
+                                <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                                    {patient.medicalHistory?.length || 0} record(s)
+                                </span>
+                            </div>
+
+                            {!patient.medicalHistory || patient.medicalHistory.length === 0 ? (
+                                <div className="rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-8 text-center">
+                                    <p className="text-slate-500 font-medium">
+                                        No clinical records are available for this patient yet.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {patient.medicalHistory
+                                        .slice()
+                                        .sort((left, right) => new Date(right.diagnosedDate || 0) - new Date(left.diagnosedDate || 0))
+                                        .map((entry, index) => (
+                                            <div
+                                                key={`${entry.diagnosedDate || "record"}-${index}`}
+                                                className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 p-6"
+                                            >
+                                                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+                                                    <div>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                                            Condition
+                                                        </p>
+                                                        <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                                                            {entry.condition || "Clinical note"}
+                                                        </h4>
+                                                    </div>
+                                                    <div className="text-left md:text-right">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                                            Recorded On
+                                                        </p>
+                                                        <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                                                            {formatTimelineDate(entry.diagnosedDate)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                                    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                                            Doctor
+                                                        </p>
+                                                        <p className="font-semibold text-slate-700 dark:text-slate-200">
+                                                            {entry.doctorName || "Not recorded"}
+                                                        </p>
+                                                    </div>
+                                                    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                                            Hospital
+                                                        </p>
+                                                        <p className="font-semibold text-slate-700 dark:text-slate-200">
+                                                            {entry.hospitalName || "Hospital not recorded"}
+                                                        </p>
+                                                    </div>
+                                                    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                                            Recorded By
+                                                        </p>
+                                                        <p className="font-semibold text-slate-700 dark:text-slate-200 capitalize">
+                                                            {entry.recordedByRole || "Care team"}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-5">
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                                                        Notes
+                                                    </p>
+                                                    <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
+                                                        {entry.notes || "No additional notes recorded."}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
