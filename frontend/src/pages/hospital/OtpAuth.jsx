@@ -16,10 +16,11 @@ export default function OtpAuth() {
     const { patient, setOtpVerified, setAuthMethod, nomineeInfo } = useSession();
     
     const [otp, setOtp] = useState("");
+    const [otpSent, setOtpSent] = useState(false);
     const [isVerifying, setIsVerifying] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState(null);
-    const [resendTimer, setResendTimer] = useState(RESEND_TIMER_SECONDS);
+    const [resendTimer, setResendTimer] = useState(0);
     const [consentTarget, setConsentTarget] = useState(CONSENT_TARGET.PATIENT);
     const [failedAttempts, setFailedAttempts] = useState(0);
     const [nomineeConfigured, setNomineeConfigured] = useState(false);
@@ -62,6 +63,7 @@ export default function OtpAuth() {
             
             if (response.success) {
                 toast.success(response.message);
+                setOtpSent(true);
                 setResendTimer(RESEND_TIMER_SECONDS);
                 return true;
             } else {
@@ -78,15 +80,11 @@ export default function OtpAuth() {
         }
     }, [consentTarget, nomineeInfo, patient]);
 
-    // Initial OTP send
     useEffect(() => {
         if (!patient) {
             navigate("/hospital");
             return;
         }
-
-        // Send initial OTP to patient
-        sendOTP(CONSENT_TARGET.PATIENT);
 
         const timer = setInterval(() => {
             setResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
@@ -163,13 +161,11 @@ export default function OtpAuth() {
         }
 
         setConsentTarget(target);
-        setResendTimer(RESEND_TIMER_SECONDS);
+        setOtpSent(false);
+        setResendTimer(0);
         setFailedAttempts(0);
         setOtp("");
         setError(null);
-        
-        // Send OTP to new target
-        await sendOTP(target);
     };
 
     // Format phone for display
@@ -233,7 +229,8 @@ export default function OtpAuth() {
                         {/* Recipient Info */}
                         <div className="mt-3 text-center">
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                OTP sent to <span className="font-mono font-bold">{formatPhoneForDisplay(getCurrentPhone())}</span>
+                                {otpSent ? "OTP sent to " : "Send OTP to "}
+                                <span className="font-mono font-bold">{formatPhoneForDisplay(getCurrentPhone())}</span>
                                 {consentTarget === CONSENT_TARGET.NOMINEE && nomineeInfo?.name && (
                                     <span className="ml-2 text-emerald-600 dark:text-emerald-400">
                                         ({nomineeInfo.name})
@@ -245,6 +242,25 @@ export default function OtpAuth() {
 
                     {/* OTP Input Form */}
                     <form onSubmit={handleVerify} className="space-y-6">
+                        <button
+                            type="button"
+                            onClick={() => sendOTP(consentTarget)}
+                            disabled={isSending || !getCurrentPhone() || (otpSent && resendTimer > 0)}
+                            className="w-full py-3 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900 text-white font-bold rounded-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            {isSending ? (
+                                <>
+                                    <span className="w-5 h-5 border-2 border-white/30 dark:border-slate-900/20 border-t-white dark:border-t-slate-900 rounded-full animate-spin"></span>
+                                    Sending OTP...
+                                </>
+                            ) : (
+                                <>
+                                    <span className="material-symbols-outlined">sms</span>
+                                    {otpSent ? (resendTimer > 0 ? `OTP Sent (${resendTimer}s)` : "Send OTP Again") : "Send OTP"}
+                                </>
+                            )}
+                        </button>
+
                         <div>
                             <input
                                 type="text"
@@ -253,7 +269,7 @@ export default function OtpAuth() {
                                 placeholder="0 0 0 0 0 0"
                                 className="w-full text-center text-3xl tracking-widest font-bold py-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:border-emerald-500 outline-none transition-all dark:text-white"
                                 autoFocus
-                                disabled={isVerifying}
+                                disabled={isVerifying || !otpSent}
                             />
                             {error && (
                                 <p className="text-red-500 text-sm font-bold mt-2 text-center">{error}</p>
@@ -262,7 +278,7 @@ export default function OtpAuth() {
 
                         <button
                             type="submit"
-                            disabled={isVerifying || otp.length < 6 || isSending}
+                            disabled={isVerifying || otp.length < 6 || isSending || !otpSent}
                             className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {isVerifying ? (
@@ -285,7 +301,7 @@ export default function OtpAuth() {
                             <button
                                 type="button"
                                 onClick={handleResend}
-                                disabled={resendTimer > 0 || isSending}
+                                disabled={!otpSent || resendTimer > 0 || isSending}
                                 className="text-emerald-600 font-bold disabled:text-slate-400 flex items-center gap-2"
                             >
                                 {isSending ? (
@@ -295,7 +311,7 @@ export default function OtpAuth() {
                                     </>
                                 ) : (
                                     <>
-                                        Resend Code {resendTimer > 0 && `(${resendTimer}s)`}
+                                        {otpSent ? `Resend Code ${resendTimer > 0 ? `(${resendTimer}s)` : ""}` : "Send OTP first"}
                                     </>
                                 )}
                             </button>

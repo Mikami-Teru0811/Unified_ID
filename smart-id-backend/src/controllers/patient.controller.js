@@ -607,7 +607,7 @@ export const addClinicalNote = async (req, res) => {
       notes: req.body.content,
       doctorName: user?.name || 'Unknown',
       doctorId: userId,
-      hospitalName: req.body.hospitalName || req.body.facilityName || null,
+      hospitalName: req.body.hospitalName || req.body.facilityName || user?.name || null,
       recordedByRole: req.user.role
     };
 
