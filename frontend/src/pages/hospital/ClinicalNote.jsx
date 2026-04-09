@@ -18,6 +18,7 @@ export default function ClinicalNote() {
     const hasPatientConsent = otpVerified && fingerprintVerified && authMethod === "PATIENT";
     const hasNomineeConsent = otpVerified && authMethod === "NOMINEE";
     const canWrite = emergency?.active || hasPatientConsent || hasNomineeConsent;
+    const activePatientId = patient?.id || patient?._id;
 
     if (!patient || !canWrite) {
         return <Navigate to="/hospital" replace />;
@@ -45,7 +46,7 @@ export default function ClinicalNote() {
         setIsSubmitting(true);
         try {
             const payload = {
-                patientId: patient.id,
+                patientId: activePatientId,
                 content: note,
                 vitals: vitalSigns,
                 timestamp: new Date().toISOString()

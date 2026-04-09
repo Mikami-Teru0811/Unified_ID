@@ -589,7 +589,11 @@ export const addClinicalNote = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const user = req.user;
-    const patientId = req.params.patientId;
+    const patientId = req.params.patientId || req.body.patientId;
+
+    if (!patientId || !mongoose.Types.ObjectId.isValid(patientId)) {
+      return res.status(400).json({ message: 'A valid patient ID is required' });
+    }
 
     const patient = await Patient.findById(patientId);
 

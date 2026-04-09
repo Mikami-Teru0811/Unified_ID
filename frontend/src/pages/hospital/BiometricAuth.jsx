@@ -9,6 +9,7 @@ export default function BiometricAuth() {
     const [isVerifying, setIsVerifying] = useState(false);
     const [error, setError] = useState(null);
     const [scanStatus, setScanStatus] = useState("PLACE_FINGER"); // PLACE_FINGER, SCANNING, SUCCESS, FAIL
+    const activePatientId = patient?.id || patient?._id;
 
     useEffect(() => {
         if (!patient || !otpVerified || !authMethod) {
@@ -27,7 +28,7 @@ export default function BiometricAuth() {
         setScanStatus("SCANNING");
 
         try {
-            const res = await hospitalAPI.verifyBiometric({ patientId: patient.id, authMethod: authMethod.toLowerCase() });
+            const res = await hospitalAPI.verifyBiometric({ patientId: activePatientId, authMethod: authMethod.toLowerCase() });
 
             if (res.success || res.verified) {
                 setScanStatus("SUCCESS");
