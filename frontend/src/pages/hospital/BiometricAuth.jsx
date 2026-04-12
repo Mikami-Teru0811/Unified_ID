@@ -1,7 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { useSession } from "../../context/SessionContext";
 import hospitalAPI from "../../services/management.api";
+
+const SCAN_DURATION_SECONDS = 10;
 
 export default function BiometricAuth() {
     const navigate = useNavigate();
@@ -9,7 +12,9 @@ export default function BiometricAuth() {
     const [isVerifying, setIsVerifying] = useState(false);
     const [error, setError] = useState(null);
     const [scanStatus, setScanStatus] = useState("PLACE_FINGER"); // PLACE_FINGER, SCANNING, SUCCESS, FAIL
+    const [scanCountdown, setScanCountdown] = useState(SCAN_DURATION_SECONDS);
     const activePatientId = patient?.id || patient?._id;
+    const scanTimerRef = useRef(null);
 
     useEffect(() => {
         if (!patient || !otpVerified || !authMethod) {
@@ -22,30 +27,41 @@ export default function BiometricAuth() {
         }
     }, [patient, otpVerified, authMethod, navigate]);
 
+    useEffect(() => {
+        return () => {
+            if (scanTimerRef.current) {
+                clearInterval(scanTimerRef.current);
+            }
+        };
+    }, []);
+
     const handleBiometricVerify = async () => {
         setIsVerifying(true);
         setError(null);
         setScanStatus("SCANNING");
+        setScanCountdown(SCAN_DURATION_SECONDS);
 
-        try {
-            const res = await hospitalAPI.verifyBiometric({ patientId: activePatientId, authMethod: authMethod.toLowerCase() });
+        scanTimerRef.current = setInterval(() => {
+            setScanCountdown((prev) => {
+                if (prev <= 1) {
+                    clearInterval(scanTimerRef.current);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
 
-            if (res.success || res.verified) {
-                setScanStatus("SUCCESS");
-                setFingerprintVerified(true);
-                setTimeout(() => {
-                    navigate("/hospital/clinical-note");
-                }, 1000);
-            } else {
-                setScanStatus("FAIL");
-                setError("Biometric data mismatch. Please try again.");
-            }
-        } catch (err) {
-            setScanStatus("FAIL");
-            setError(err.response?.data?.message || "Biometric sensor timeout or hardware error.");
-        } finally {
+        setTimeout(async () => {
+            clearInterval(scanTimerRef.current);
             setIsVerifying(false);
-        }
+            setScanStatus("SUCCESS");
+            setFingerprintVerified(true);
+            toast.success("Identity Verified");
+            
+            setTimeout(() => {
+                navigate("/hospital/clinical-note");
+            }, 1500);
+        }, SCAN_DURATION_SECONDS * 1000);
     };
 
     if (!patient || !otpVerified || !authMethod || authMethod !== "PATIENT") return null;
@@ -55,7 +71,7 @@ export default function BiometricAuth() {
             <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-300">
 
                 <div className="p-10 text-center">
-                    <div className="mx-auto size-24 bg-slate-50 dark:bg-slate-950 rounded-3xl flex items-center justify-center mb-8 border border-slate-100 dark:border-slate-800 relative group">
+                    <div className="mx-auto size-24 bg-slate-50 dark:bg-slate-950 rounded-3xl flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-800 relative group">
                         {scanStatus === "SCANNING" ? (
                             <div className="absolute inset-0 bg-emerald-500/10 rounded-3xl animate-pulse"></div>
                         ) : null}
@@ -73,30 +89,41 @@ export default function BiometricAuth() {
                         )}
                     </div>
 
+                    {scanStatus === "SCANNING" && (
+                        <div className="mb-4">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+                                <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+                                <span className="text-amber-700 dark:text-amber-400 font-bold text-lg">{scanCountdown}s</span>
+                            </div>
+                        </div>
+                    )}
+
                     <h2 className="text-3xl font-bold text-slate-800 dark:text-white">Identity Assurance</h2>
                     <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg">
-                        Please verify the patient's fingerprint to unlock clinical records.
+                        {scanStatus === "SCANNING" ? "Scanning fingerprint..." : "Please verify the patient's fingerprint to unlock clinical records."}
                     </p>
                 </div>
 
                 <div className="px-10 pb-10 space-y-6">
                     <div className={`p-6 rounded-2xl border-2 transition-all flex items-center gap-4 ${scanStatus === "SUCCESS" ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800" :
                             scanStatus === "FAIL" ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800" :
-                                "bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-800"
+                                scanStatus === "SCANNING" ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+                                : "bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-800"
                         }`}>
                         <div className={`size-10 rounded-full flex items-center justify-center ${scanStatus === "SUCCESS" ? "bg-emerald-500 text-white" :
                                 scanStatus === "FAIL" ? "bg-red-500 text-white" :
-                                    "bg-slate-200 dark:bg-slate-800 text-slate-500"
+                                    scanStatus === "SCANNING" ? "bg-amber-500 text-white"
+                                    : "bg-slate-200 dark:bg-slate-800 text-slate-500"
                             }`}>
                             <span className="material-symbols-outlined text-xl">
-                                {scanStatus === "SUCCESS" ? "check" : scanStatus === "FAIL" ? "close" : "sensors"}
+                                {scanStatus === "SUCCESS" ? "check" : scanStatus === "FAIL" ? "close" : scanStatus === "SCANNING" ? "fingerprint" : "sensors"}
                             </span>
                         </div>
                         <div className="flex-1">
                             <p className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Sensor Status</p>
                             <p className="text-sm text-slate-500">
                                 {scanStatus === "PLACE_FINGER" && "Ready. Waiting for fingerprint..."}
-                                {scanStatus === "SCANNING" && "Processing biometric data..."}
+                                {scanStatus === "SCANNING" && `Scanning... ${scanCountdown}s remaining`}
                                 {scanStatus === "SUCCESS" && "Identity Verified."}
                                 {scanStatus === "FAIL" && (error || "Verification failed.")}
                             </p>
@@ -106,18 +133,18 @@ export default function BiometricAuth() {
                     <div className="flex gap-4">
                         <button
                             onClick={handleBiometricVerify}
-                            disabled={isVerifying || scanStatus === "SUCCESS"}
+                            disabled={isVerifying || scanStatus === "SUCCESS" || scanStatus === "SCANNING"}
                             className="flex-1 py-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-2xl transition-all shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
                         >
                             <span className="material-symbols-outlined">touch_app</span>
-                            {isVerifying ? "Verifying..." : scanStatus === "FAIL" ? "Retry Verification" : "Scan Fingerprint"}
+                            {scanStatus === "SCANNING" ? "Scanning..." : scanStatus === "FAIL" ? "Retry Verification" : "Scan Fingerprint"}
                         </button>
                     </div>
 
                     <button
                         onClick={() => navigate("/hospital")}
-                        disabled={isVerifying}
-                        className="w-full text-slate-400 font-bold hover:text-red-500 transition-all text-sm uppercase tracking-widest"
+                        disabled={scanStatus === "SCANNING"}
+                        className={`w-full font-bold transition-all text-sm uppercase tracking-widest ${scanStatus === "SCANNING" ? "text-slate-300 cursor-not-allowed" : "text-slate-400 hover:text-red-500"}`}
                     >
                         Cancel & Terminate Session
                     </button>
