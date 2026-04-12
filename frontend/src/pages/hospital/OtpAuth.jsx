@@ -330,7 +330,7 @@ export default function OtpAuth() {
                                 placeholder="0 0 0 0 0 0"
                                 className="w-full text-center text-3xl tracking-widest font-bold py-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:border-emerald-500 outline-none transition-all dark:text-white"
                                 autoFocus
-                                disabled={isVerifying || !otpSent}
+                                disabled={isVerifying}
                             />
                             {error && (
                                 <p className="text-red-500 text-sm font-bold mt-2 text-center">{error}</p>
