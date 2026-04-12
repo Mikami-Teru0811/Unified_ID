@@ -6,6 +6,7 @@ import Patient from "../models/Patient.js";
 import { emitToPatient, emitToMedicalStaff } from "../config/socket.js";
 import smsService, { SMS_PROVIDERS } from "../utils/smsService.js";
 import { logAudit } from "../utils/auditLogger.js";
+import { PHONE_RATE_LIMIT_WINDOW, PHONE_RATE_LIMIT_MAX } from "../utils/constants.js";
 
 const normalizePhone = (phone) => `${phone || ""}`.trim();
 
@@ -100,12 +101,12 @@ export const sendOtp = async (req, res) => {
         const recentRequests = await LoginAudit.countDocuments({
             phone: finalPhone,
             status: { $in: ['OTP_SENT', 'NOMINEE_OTP_SENT'] },
-            createdAt: { $gt: new Date(Date.now() - 10 * 60 * 1000) }
+            createdAt: { $gt: new Date(Date.now() - PHONE_RATE_LIMIT_WINDOW) }
         });
 
-        if (recentRequests >= 3) {
+        if (recentRequests >= PHONE_RATE_LIMIT_MAX) {
             return res.status(429).json({
-                error: "Too many OTP requests for this number. Try again in 10 minutes."
+                error: `Too many OTP requests for this number. Try again in ${PHONE_RATE_LIMIT_WINDOW / 1000} seconds.`
             });
         }
 
@@ -126,9 +127,10 @@ export const sendOtp = async (req, res) => {
             ? SMS_MESSAGES.NOMINEE(otp, patientName)
             : SMS_MESSAGES.PATIENT(otp);
 
+        let smsResult;
         try {
-            const smsResult = await smsService.send(finalPhone, smsMessage);
-            console.log('SMS sent successfully:', smsResult.messageId);
+            smsResult = await smsService.send(finalPhone, smsMessage);
+            console.log('SMS sent successfully:', smsResult?.messageId || 'N/A');
         } catch (smsError) {
             console.error('SMS send failed:', smsError.message);
             console.warn('OTP generated but SMS delivery failed. OTP:', otp);

@@ -12,10 +12,10 @@ export const TOKEN_EXPIRY_PASSWORD = '1d'; // 1 day for password-based login
 export const OTP_LENGTH = 6;
 export const OTP_EXPIRY_MINUTES = 5;
 export const MAX_OTP_ATTEMPTS = 3;
-export const OTP_RATE_LIMIT_WINDOW = 10 * 60 * 1000; // 10 minutes
-export const OTP_RATE_LIMIT_MAX = 5; // 5 requests per window
-export const PHONE_RATE_LIMIT_WINDOW = 10 * 60 * 1000; // 10 minutes
-export const PHONE_RATE_LIMIT_MAX = 3; // 3 requests per phone per window
+export const OTP_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+export const OTP_RATE_LIMIT_MAX = 4; // 4 requests per window
+export const PHONE_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+export const PHONE_RATE_LIMIT_MAX = 4; // 4 requests per phone per window
 
 // Auth Configuration
 export const MIN_PASSWORD_LENGTH = 8;

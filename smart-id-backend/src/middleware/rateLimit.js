@@ -1,10 +1,10 @@
 import rateLimit from "express-rate-limit";
 
 export const otpLimiter = rateLimit({
-    windowMs: 10 * 60 * 1000,
-    max: 5,
+    windowMs: 60 * 1000,
+    max: 4,
     message: {
-        error: "Too many OTP requests. Try again after 10 minutes."
+        error: "Too many OTP requests. Try again after 1 minute."
     },
     standardHeaders: true,
     legacyHeaders: false

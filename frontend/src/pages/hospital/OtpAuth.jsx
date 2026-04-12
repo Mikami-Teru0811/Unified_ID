@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useSession } from "../../context/SessionContext";
@@ -12,6 +12,7 @@ const CONSENT_TARGET = {
 const RESEND_TIMER_SECONDS = 30;
 
 export default function OtpAuth() {
+    const lastSendAttempt = useRef(0);
     const navigate = useNavigate();
     const { patient, setOtpVerified, setAuthMethod, nomineeInfo } = useSession();
     
@@ -21,6 +22,8 @@ export default function OtpAuth() {
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState(null);
     const [resendTimer, setResendTimer] = useState(0);
+    const [rateLimitTimer, setRateLimitTimer] = useState(0);
+    const [isRateLimited, setIsRateLimited] = useState(false);
     const [consentTarget, setConsentTarget] = useState(CONSENT_TARGET.PATIENT);
     const [failedAttempts, setFailedAttempts] = useState(0);
     const [nomineeConfigured, setNomineeConfigured] = useState(false);
@@ -42,6 +45,12 @@ export default function OtpAuth() {
 
     // Send OTP function
     const sendOTP = useCallback(async (target = consentTarget) => {
+        const now = Date.now();
+        if (now - lastSendAttempt.current < 1000) {
+            return false;
+        }
+        lastSendAttempt.current = now;
+
         const isNominee = target === CONSENT_TARGET.NOMINEE;
         const phone = isNominee
             ? (nomineeInfo?.phone || patient?.emergencyContact?.phone)
@@ -61,17 +70,32 @@ export default function OtpAuth() {
                 ? await hospitalAPI.sendNomineeOtp(phone, patientId)
                 : await hospitalAPI.sendOtp(phone, patientId);
             
-            if (response.success) {
+            if (response?.success) {
                 toast.success(response.message);
                 setOtpSent(true);
                 setResendTimer(RESEND_TIMER_SECONDS);
                 return true;
             } else {
-                setError(response.error || "Failed to send OTP");
+                const errorMsg = response?.error || "Failed to send OTP";
+                setError(errorMsg);
+                toast.error(errorMsg);
                 return false;
             }
         } catch (err) {
-            const errorMsg = err.response?.data?.error || err.response?.data?.message || "Failed to send OTP";
+            const statusCode = err.response?.status;
+            let errorMsg;
+            
+            if (statusCode === 429) {
+                errorMsg = err.response?.data?.error || "Too many OTP requests. Please wait a few minutes.";
+                setIsRateLimited(true);
+                setRateLimitTimer(60);
+                setOtpSent(false);
+            } else if (statusCode === 404) {
+                errorMsg = err.response?.data?.error || "Patient not found";
+            } else {
+                errorMsg = err.response?.data?.error || err.response?.data?.message || "Failed to send OTP";
+            }
+            
             setError(errorMsg);
             toast.error(errorMsg);
             return false;
@@ -88,6 +112,15 @@ export default function OtpAuth() {
 
         const timer = setInterval(() => {
             setResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
+            setRateLimitTimer((prev) => {
+                if (prev > 0) {
+                    if (prev === 1) {
+                        setIsRateLimited(false);
+                    }
+                    return prev - 1;
+                }
+                return 0;
+            });
         }, 1000);
 
         return () => clearInterval(timer);
@@ -245,13 +278,22 @@ export default function OtpAuth() {
                         <button
                             type="button"
                             onClick={() => sendOTP(consentTarget)}
-                            disabled={isSending || !getCurrentPhone() || (otpSent && resendTimer > 0)}
-                            className="w-full py-3 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900 text-white font-bold rounded-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            disabled={isSending || !getCurrentPhone() || isRateLimited || (otpSent && resendTimer > 0)}
+                            className={`w-full py-3 font-bold rounded-2xl transition-all flex items-center justify-center gap-2 ${
+                                isRateLimited 
+                                    ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-not-allowed' 
+                                    : 'bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed'
+                            }`}
                         >
                             {isSending ? (
                                 <>
                                     <span className="w-5 h-5 border-2 border-white/30 dark:border-slate-900/20 border-t-white dark:border-t-slate-900 rounded-full animate-spin"></span>
                                     Sending OTP...
+                                </>
+                            ) : isRateLimited ? (
+                                <>
+                                    <span className="material-symbols-outlined">schedule</span>
+                                    Rate Limited ({Math.floor(rateLimitTimer / 60)}:${(rateLimitTimer % 60).toString().padStart(2, '0')})
                                 </>
                             ) : (
                                 <>
@@ -301,13 +343,18 @@ export default function OtpAuth() {
                             <button
                                 type="button"
                                 onClick={handleResend}
-                                disabled={!otpSent || resendTimer > 0 || isSending}
+                                disabled={!otpSent || resendTimer > 0 || isSending || isRateLimited}
                                 className="text-emerald-600 font-bold disabled:text-slate-400 flex items-center gap-2"
                             >
                                 {isSending ? (
                                     <>
                                         <span className="w-4 h-4 border-2 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin"></span>
                                         Sending...
+                                    </>
+                                ) : isRateLimited ? (
+                                    <>
+                                        <span className="material-symbols-outlined text-amber-500">schedule</span>
+                                        Rate limited
                                     </>
                                 ) : (
                                     <>
