@@ -15,6 +15,7 @@ const STATES = {
 
 const TIMEOUT_SECONDS = 30;
 const POLL_INTERVAL = 2000;
+const SIM_SCAN_DURATION_SECONDS = 10;
 
 const buildRegistrationPayload = (registrationData, userId, fingerprintId) => {
     const { email: _email, ...contactWithoutEmail } = registrationData.contact || {};
@@ -168,6 +169,40 @@ export default function Step4FingerAuth() {
                 setEnrollState(STATES.SCANNING);
                 startCountdown();
                 startPollingRef.current?.(response.operationId);
+
+                setTimeout(async () => {
+                    clearAllTimers();
+                    const simulatedFingerId = `SIM-${Date.now()}`;
+                    setFingerId(simulatedFingerId);
+                    update("fingerprintId", simulatedFingerId);
+                    update("fingerprintEnrolled", false);
+                    setRegistrationConflict(null);
+                    setEnrollState(STATES.REGISTERING);
+
+                    try {
+                        const registrationPayload = buildRegistrationPayload(data, user?.id, simulatedFingerId);
+                        console.log("REGISTRATION PAYLOAD (SIM):", registrationPayload);
+                        const registerResponse = await hospitalAPI.registerPatient(registrationPayload);
+                        console.log("Registration success (SIM):", registerResponse);
+                        update("patientId", registerResponse.patientId);
+                        setEnrollState(STATES.SUCCESS);
+                    } catch (err) {
+                        console.error("Registration error (SIM):", err);
+                        setEnrollState(STATES.ERROR);
+                        if (err.response?.status === 409) {
+                            const conflictData = {
+                                code: err.response?.data?.code || "PATIENT_DUPLICATE_CONFLICT",
+                                field: err.response?.data?.field || "unknown",
+                                message: err.response?.data?.message || "Duplicate value found"
+                            };
+                            setRegistrationConflict(conflictData);
+                            setErrorMessage(conflictData.message);
+                        } else {
+                            setRegistrationConflict(null);
+                            setErrorMessage(err.response?.data?.message || err.message || "Patient registration failed. Please try again.");
+                        }
+                    }
+                }, SIM_SCAN_DURATION_SECONDS * 1000);
             } else {
                 throw new Error(response.message || "Failed to start enrollment");
             }
@@ -203,7 +238,7 @@ export default function Step4FingerAuth() {
             
             handleEnrollmentFailure(errorMessage);
         }
-    }, [clearAllTimers, startCountdown, handleEnrollmentFailure]);
+    }, [clearAllTimers, startCountdown, handleEnrollmentFailure, data, user, update]);
 
     const startPolling = useCallback((opId) => {
         if (pollingRef.current) {
@@ -469,7 +504,7 @@ export default function Step4FingerAuth() {
                                     : showProgress
                                         ? "Processing enrollment and registering patient..."
                                         : showScanning
-                                            ? `Place finger on scanner and hold steady... ${timeLeft}s remaining`
+                                            ? "Place finger on scanner and hold steady..."
                                             : "Click START ENROLLMENT to begin fingerprint capture."}
                     </p>
                     {registrationConflict && fingerId && (
@@ -484,18 +519,12 @@ export default function Step4FingerAuth() {
                     )}
                 </div>
 
-                {showScanning && (
+                {showScanning && SIM_SCAN_DURATION_SECONDS > 0 && (
                     <div className="w-full max-w-xs">
-                        <div className="flex justify-between text-xs mb-1">
-                            <span className="text-slate-500">Scanning</span>
-                            <span className={`font-mono font-bold ${timeLeft <= 10 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                {timeLeft}s
-                            </span>
-                        </div>
-                        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-full overflow-hidden">
                             <div 
-                                className={`h-full rounded-full transition-all duration-1000 ${timeLeft <= 10 ? 'bg-red-500' : 'bg-emerald-500'}`}
-                                style={{ width: `${(timeLeft / TIMEOUT_SECONDS) * 100}%` }}
+                                className="h-full bg-emerald-500 animate-pulse rounded-full"
+                                style={{ width: '100%' }}
                             />
                         </div>
                     </div>
