@@ -70,10 +70,13 @@ export default function OtpAuth() {
                 ? await hospitalAPI.sendNomineeOtp(phone, patientId)
                 : await hospitalAPI.sendOtp(phone, patientId);
             
+            console.log('[OTP] Response:', response);
+            
             if (response?.success) {
                 toast.success(response.message);
                 setOtpSent(true);
                 setResendTimer(RESEND_TIMER_SECONDS);
+                setError(null);
                 return true;
             } else {
                 const errorMsg = response?.error || "Failed to send OTP";
@@ -82,18 +85,34 @@ export default function OtpAuth() {
                 return false;
             }
         } catch (err) {
+            console.log('[OTP] Error:', {
+                status: err.response?.status,
+                data: err.response?.data,
+                message: err.message,
+                code: err.code
+            });
+            
             const statusCode = err.response?.status;
             let errorMsg;
             
             if (statusCode === 429) {
-                errorMsg = err.response?.data?.error || "Too many OTP requests. Please wait a few minutes.";
+                errorMsg = err.response?.data?.error 
+                    || err.response?.data?.message 
+                    || "Too many OTP requests. Please wait.";
                 setIsRateLimited(true);
                 setRateLimitTimer(60);
                 setOtpSent(false);
             } else if (statusCode === 404) {
                 errorMsg = err.response?.data?.error || "Patient not found";
+            } else if (statusCode === 400) {
+                errorMsg = err.response?.data?.error || "Invalid request";
+            } else if (err.code === 'ECONNABORTED') {
+                errorMsg = "Request timed out. Please try again.";
             } else {
-                errorMsg = err.response?.data?.error || err.response?.data?.message || "Failed to send OTP";
+                errorMsg = err.response?.data?.error 
+                    || err.response?.data?.message 
+                    || err.message 
+                    || "Failed to send OTP";
             }
             
             setError(errorMsg);
