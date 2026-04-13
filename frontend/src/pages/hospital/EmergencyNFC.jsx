@@ -12,6 +12,7 @@ export default function EmergencyNFC() {
     const [isScanning, setIsScanning] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
     const [error, setError] = useState(null);
+    const [isVerified, setIsVerified] = useState(false);
     const expectedUid = `${patient?.nfcId || patient?.nfcUuid || ""}`.trim();
 
     useEffect(() => {
@@ -49,16 +50,15 @@ export default function EmergencyNFC() {
                 location: refreshedPatient.location || patient.location || "Hospital intake",
             });
             setIsScanning(false);
+            setIsVerified(true);
             toast.success("Patient card verified successfully");
-            setTimeout(() => {
-                navigate("/hospital/clinical-note");
-            }, 1200);
+            navigate("/hospital/clinical-note");
         } catch (scanError) {
             console.error("Emergency NFC verification failed:", scanError);
             setError(scanError.response?.data?.message || scanError.message || "Emergency NFC verification failed.");
             setIsScanning(false);
         }
-    }, [navigate, patient, setPatient, expectedUid]);
+    }, [navigate, patient, setPatient, expectedUid, isVerified]);
 
     useEffect(() => {
         if (!emergency?.active) return;
@@ -112,19 +112,28 @@ export default function EmergencyNFC() {
                                 {isScanning ? "Scanning..." : "Start Scan Again"}
                             </button>
                         </div>
+                    ) : isVerified ? (
+                        <div className="flex flex-col items-center gap-4 py-5 bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-500 rounded-2xl">
+                            <div className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+                            <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold animate-in fade-in zoom-in-95">
+                                <span className="material-symbols-outlined">check_circle</span>
+                                Card Verified. Loading EMR...
+                            </div>
+                        </div>
                     ) : (
-                        <div className="py-5 bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-500 rounded-2xl flex items-center justify-center gap-3 text-emerald-700 dark:text-emerald-400 font-bold animate-in fade-in zoom-in-95">
-                            <span className="material-symbols-outlined">check_circle</span>
-                            Card Verified. Accessing Records...
+                        <div className="flex flex-col items-center gap-4">
+                            <p className="text-slate-500 text-sm">Ready to scan patient card</p>
                         </div>
                     )}
-
-                    <button
-                        onClick={() => navigate("/hospital")}
-                        className="w-full mt-6 text-slate-400 font-bold hover:text-red-500 transition-all text-sm uppercase tracking-widest"
-                    >
-                        Cancel Override
-                    </button>
+                    
+                    {!isVerified && (
+                        <button
+                            onClick={() => navigate("/hospital")}
+                            className="w-full mt-6 text-slate-400 font-bold hover:text-red-500 transition-all text-sm uppercase tracking-widest"
+                        >
+                            Cancel Override
+                        </button>
+                    )}
                 </div>
 
                 <div className="bg-red-50 dark:bg-red-900/10 p-6 border-t border-red-100 dark:border-red-800 flex items-center gap-4">
