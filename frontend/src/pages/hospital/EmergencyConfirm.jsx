@@ -27,9 +27,14 @@ export default function EmergencyConfirm() {
             const res = await hospitalAPI.authenticateEmergencyManager({ password });
 
             if (res.allowed || res.authorized) {
+                if (!res.user) {
+                    setError("Authentication failed. Please contact system administrator.");
+                    setIsVerifying(false);
+                    return;
+                }
                 setEmergencySession({
                     active: true,
-                    by: res.user || { id: "admin_01", name: "Institutional Admin", role: "ADMIN" },
+                    by: res.user,
                     startedAt: Date.now()
                 });
                 navigate("/hospital/emergency/nfc-scan");
