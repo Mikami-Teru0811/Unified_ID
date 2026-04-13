@@ -18,6 +18,8 @@ export default function EmergencyNFC() {
     useEffect(() => {
         if (!emergency?.active) {
             navigate("/hospital");
+        } else {
+            navigate("/hospital/clinical-note");
         }
     }, [emergency?.active, navigate]);
 

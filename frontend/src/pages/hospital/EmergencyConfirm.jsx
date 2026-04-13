@@ -37,7 +37,7 @@ export default function EmergencyConfirm() {
                     by: res.user,
                     startedAt: Date.now()
                 });
-                navigate("/hospital/emergency/nfc-scan");
+                navigate("/hospital/clinical-note");
             } else {
                 setError("Unauthorized. Admin or Manager role required.");
             }
